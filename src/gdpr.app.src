@@ -1,0 +1,16 @@
+{application, gdpr,
+ [{description, "An OTP application for GDPR consent string"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { gdpr_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, []},
+  {licenses, []},
+  {links, []}
+ ]}.
