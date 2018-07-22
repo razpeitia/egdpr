@@ -8,7 +8,8 @@
 
 -export([
 	new/1,
-	new/2
+	new/2,
+	enforce_max_vendor_id/2
 ]).
 
 
@@ -16,7 +17,7 @@ new(Id) ->
 	#range_entry{start_id = Id, end_id = Id}.
 
 new(StartId, EndId) ->
-	#range_entry{start_id = StartId, end_id = EndId};
+	#range_entry{start_id = StartId, end_id = EndId}.
 
 enforce_max_vendor_id(#range_entry{start_id = StartId, end_id = EndId}, MaxVendorId) ->
 	case StartId > MaxVendorId orelse EndId > MaxVendorId of

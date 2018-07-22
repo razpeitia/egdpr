@@ -35,15 +35,18 @@
 -define(CONSENT_SCREEN_SIZE, 6).
 -define(CONSENT_LANGUAGE_SIZE, 12).
 -define(VENDOR_LIST_VERSION_SIZE, 12).
+-define(PURPOSE_SIZE, 1).
 -define(PURPOSES_SIZE, 24).
 -define(MAX_VENDOR_ID_SIZE, 16).
 -define(ENCODING_TYPE_SIZE, 1).
 -define(DEFAULT_CONSENT_SIZE, 1).
 -define(NUM_ENTRIES_SIZE, 12).
 -define(VENDOR_ID_SIZE, 16).
--define(VENDOR_ENCODING_RANGE, 1).
 -define(SINGLE_VENDOR, 0).
+-define(VENDOR_TYPE_SIZE, 1).
 -define(RANGE_VENDOR, 1).
+-define(ENABLE, 1).
+-define(DISABLE, 0).
 
 new(Version, Created, LastUpdate, CpmId, CpmVersion,
 	ConsentScreen, ConsentLanguage, VendorListVersion,
@@ -103,13 +106,11 @@ parse_consent_string(ConsentString) ->
 	>> = RawConsentString,
 	
 	PurposesAllowed = parse_allowed_purposes(BitsPurposesAllowed),
+	<<DefaultConsent:?DEFAULT_CONSENT_SIZE, 
+	  NumEntries:?NUM_ENTRIES_SIZE,
+	  RestEntries/bitstring>> = Rest,
 	case EncodingType of
 		?VENDOR_ENCODING_RANGE ->
-			<<
-				DefaultConsent:?DEFAULT_CONSENT_SIZE,
-				NumEntries:?NUM_ENTRIES_SIZE,
-				RestEntries/bitstring
-			>> = Rest,
 			RangeEntries = parse_range_entries(RestEntries, MaxVendorId),
 			enforce_num_entries(RangeEntries, NumEntries),
 			new(Version, Created, LastUpdate, CpmId, CpmVersion,
@@ -117,7 +118,7 @@ parse_consent_string(ConsentString) ->
 				PurposesAllowed, MaxVendorId, EncodingType,
 				DefaultConsent, NumEntries, RangeEntries);
 		_ ->
-			enforce_bit_field(RestEntries, MaxVendorId)
+			enforce_bit_field(RestEntries, MaxVendorId),
 			new(Version, Created, LastUpdate, CpmId, CpmVersion,
 				ConsentScreen, ConsentLanguage, VendorListVersion,
 				PurposesAllowed, MaxVendorId, EncodingType,
@@ -127,25 +128,25 @@ parse_consent_string(ConsentString) ->
 parse_allowed_purposes(Bitstring) ->
 	parse_allowed_purposes(Bitstring, 1, []).
 
-parse_allowed_purposes(<<>>, Counter, Acc) ->
+parse_allowed_purposes(<<>>, _Counter, Acc) ->
 	lists:reverse(Acc);
-parse_allowed_purposes(<<1:1, Rest/bitstring>>, Counter, Acc) ->
+parse_allowed_purposes(<<?ENABLE:?PURPOSE_SIZE, Rest/bitstring>>, Counter, Acc) ->
 	parse_allowed_purposes(Rest, Counter + 1, [Counter | Acc]);
-parse_allowed_purposes(<<0:1, Rest/bitstring>>, Counter, Acc) ->
-	parse_allowed_purposes(Rest, Counter + 1, Acc);
+parse_allowed_purposes(<<?DISABLE:?PURPOSE_SIZE, Rest/bitstring>>, Counter, Acc) ->
+	parse_allowed_purposes(Rest, Counter + 1, Acc).
 
 parse_range_entries(RawEntries, MaxVendorId) ->
 	parse_range_entries(RawEntries, MaxVendorId, []).
 
 parse_range_entries(<<>>, _MaxVendorId, Acc) -> lists:reverse(Acc);
-parse_range_entries(<<?SINGLE_VENDOR:1, Id:?VENDOR_ID_SIZE, Rest/bitstring>>, MaxVendorId, Acc) ->
+parse_range_entries(<<?SINGLE_VENDOR:?VENDOR_TYPE_SIZE, Id:?VENDOR_ID_SIZE, Rest/bitstring>>, MaxVendorId, Acc) ->
 	RangeEntry = range_entry:new(Id),
 	range_entry:enforce_max_vendor_id(RangeEntry, MaxVendorId),
-	parse_range_entry(Rest, [RangeEntry | Acc]).
-parse_range_entries(<<?RANGE_VENDOR:1, StartId:?VENDOR_ID_SIZE, EndId:?VENDOR_ID_SIZE, Rest/bitstring>>, MaxVendorId, Acc) ->
+	parse_range_entries(Rest, MaxVendorId, [RangeEntry | Acc]);
+parse_range_entries(<<?RANGE_VENDOR:?VENDOR_TYPE_SIZE, StartId:?VENDOR_ID_SIZE, EndId:?VENDOR_ID_SIZE, Rest/bitstring>>, MaxVendorId, Acc) ->
 	RangeEntry = range_entry:new(StartId, EndId),
 	range_entry:enforce_max_vendor_id(RangeEntry, MaxVendorId),
-	parse_range_entry(Rest, [RangeEntry | Acc]).
+	parse_range_entries(Rest, MaxVendorId, [RangeEntry | Acc]).
 
 enforce_num_entries(RangeEntries, NumEntries) ->
 	case length(RangeEntries) == NumEntries of
